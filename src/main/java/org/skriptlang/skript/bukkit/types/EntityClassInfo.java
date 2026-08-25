@@ -15,9 +15,11 @@ import ch.njol.skript.util.Utils;
 import ch.njol.util.coll.CollectionUtils;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Tameable;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -59,7 +61,46 @@ public class EntityClassInfo extends ClassInfo<Entity> {
 			.property(Property.DISPLAY_NAME,
 				"The entity's custom name, if it has one, as text. Can be set or reset.",
 				Skript.instance(),
-				EntityNameHandler.displayName());
+				EntityNameHandler.displayName())
+			.property(Property.OWNER,
+				"The owner of a tameable entity, such as a horse or a wolf, as an offline player. Can be set, "
+					+ "reset or deleted to untame the entity.",
+				Skript.instance(),
+				new EntityOwnerHandler());
+	}
+
+	private static class EntityOwnerHandler implements ExpressionPropertyHandler<Entity, OfflinePlayer> {
+		//<editor-fold desc="owner property for entities" defaultstate="collapsed">
+		@Override
+		public @Nullable OfflinePlayer convert(Entity entity) {
+			if (entity instanceof Tameable tameable && tameable.isTamed()
+					&& tameable.getOwner() instanceof OfflinePlayer owner) {
+				return owner;
+			}
+			return null;
+		}
+
+		@Override
+		public Class<?> @Nullable [] acceptChange(ChangeMode mode) {
+			return switch (mode) {
+				case SET, DELETE, RESET -> CollectionUtils.array(OfflinePlayer.class);
+				default -> null;
+			};
+		}
+
+		@Override
+		public void change(Entity entity, Object @Nullable [] delta, ChangeMode mode) {
+			if (!(entity instanceof Tameable tameable))
+				return;
+			OfflinePlayer owner = (delta == null || delta.length == 0) ? null : (OfflinePlayer) delta[0];
+			tameable.setOwner(owner);
+		}
+
+		@Override
+		public @NotNull Class<OfflinePlayer> returnType() {
+			return OfflinePlayer.class;
+		}
+		//</editor-fold>
 	}
 
 	private static class EntityParser extends Parser<Entity> {
